@@ -9,41 +9,40 @@
 *Target: Monorepo jalan, semua tools siap, bisa langsung nulis kode.*
 
 ### Chunk 0.1 — Inisialisasi Repo
-- [ ] Buat repo baru di GitHub: `logpilot`
-- [ ] Clone ke lokal, buat struktur folder sesuai PRD Section 8
-- [ ] Buat `README.md` kosong dulu (nanti diisi di Phase 6)
-- [ ] Commit awal: `chore: init monorepo structure`
+- [x] Buat repo baru di GitHub: `logpilot`
+- [x] Clone ke lokal, buat struktur folder sesuai PRD Section 8
+- [x] Buat `README.md` kosong dulu (nanti diisi di Phase 6)
+- [x] Commit awal: `chore: init monorepo structure`
 
 ### Chunk 0.2 — Setup Go Workspace
-- [ ] Di dalam `services/ingestor/`, jalankan `go mod init github.com/{username}/logpilot/ingestor`
-- [ ] Ulangi untuk `consumer-storage`, `consumer-alert`, `alert-dispatcher`
-- [ ] Di `demo/dummy-app/`, jalankan `go mod init github.com/{username}/logpilot/demo/dummy-app`
-- [ ] Di `demo/log-generator/`, jalankan `go mod init github.com/{username}/logpilot/demo/log-generator`
+- [x] Di dalam `services/ingestor/`, jalankan `go mod init github.com/{username}/logpilot/ingestor`
+- [x] Ulangi untuk `consumer-storage`, `consumer-alert`, `alert-dispatcher`
+- [x] Di `demo/dummy-app/`, jalankan `go mod init github.com/{username}/logpilot/demo/dummy-app`
+- [x] Di `demo/log-generator/`, jalankan `go mod init github.com/{username}/logpilot/demo/log-generator`
 
 ### Chunk 0.3 — Setup Docker Compose Infrastructure
-- [ ] Buat `deploy/docker-compose/docker-compose.yml` dengan services berikut (tanpa custom services dulu):
-  - `zookeeper` (bitnami/zookeeper)
-  - `kafka` (bitnami/kafka, depends on zookeeper)
-  - `redis` (redis:alpine)
-  - `postgres` (postgres:15)
-  - `clickhouse` (clickhouse/clickhouse-server)
-  - `grafana` (grafana/grafana)
-  - `alertmanager` (prom/alertmanager)
-- [ ] Buat `deploy/docker-compose/.env.example` dengan semua variable yang dibutuhkan
-- [ ] Jalankan `docker-compose up -d` dan pastikan semua service healthy
-- [ ] Verifikasi: `docker-compose ps` — semua status `Up`
+- [x] Buat `deploy/docker-compose/docker-compose.yml` dengan services berikut (tanpa custom services dulu):
+  - `kafka` (apache/kafka:3.7.0, KRaft mode — tanpa zookeeper)
+  - `redis` (redis:7-alpine)
+  - `postgres` (postgres:15-alpine)
+  - `clickhouse` (clickhouse/clickhouse-server:23.8)
+  - `grafana` (grafana/grafana:10.2.0)
+  - `alertmanager` (prom/alertmanager:v0.26.0)
+- [x] Buat `deploy/docker-compose/.env.example` dengan semua variable yang dibutuhkan
+- [x] Jalankan `docker-compose up -d` dan pastikan semua service healthy
+- [x] Verifikasi: `docker-compose ps` — semua status `Up`
 
 ### Chunk 0.4 — Verifikasi Koneksi Infrastructure
-- [ ] Test Redis: `docker exec -it <redis_container> redis-cli ping` → harus reply `PONG`
-- [ ] Test Kafka: masuk ke Kafka container, buat topic `raw-logs` manual dulu:
+- [x] Test Redis: `docker exec -it <redis_container> redis-cli ping` → harus reply `PONG`
+- [x] Test Kafka: masuk ke Kafka container, buat topic `raw-logs` manual dulu:
   ```
   kafka-topics.sh --create --topic raw-logs --partitions 6 --replication-factor 1 --bootstrap-server localhost:9092
   kafka-topics.sh --create --topic alert-events --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092
   ```
-- [ ] Test ClickHouse: `docker exec -it <clickhouse_container> clickhouse-client` → bisa masuk CLI
-- [ ] Test PostgreSQL: connect via TablePlus atau psql, pastikan bisa create database
-- [ ] Buat database di PostgreSQL: `CREATE DATABASE logpilot;`
-- [ ] Commit: `chore: docker-compose infra stack ready`
+- [x] Test ClickHouse: `docker exec -it <clickhouse_container> clickhouse-client` → bisa masuk CLI
+- [x] Test PostgreSQL: connect via TablePlus atau psql, pastikan bisa create database
+- [x] Buat database di PostgreSQL: `CREATE DATABASE logpilot;`
+- [x] Commit: `chore: docker-compose infra stack ready`
 
 ---
 
@@ -514,7 +513,7 @@
 
 | Phase | Status | Selesai Tgl |
 |---|---|---|
-| Phase 0 — Setup | ⬜ Not started | — |
+| Phase 0 — Setup | ✅ Done | 2026-04-26 |
 | Phase 1 — Ingestor | ⬜ Not started | — |
 | Phase 2 — Storage Worker | ⬜ Not started | — |
 | Phase 3 — Alert Pipeline | ⬜ Not started | — |
