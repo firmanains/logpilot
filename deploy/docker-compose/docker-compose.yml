@@ -13,14 +13,14 @@ volumes:
 services:
   kafka:
     image: apache/kafka:3.7.0
-    container_name: kafka
+    container_name: logpilot-kafka
     ports:
       - "9092:9092"
     environment:
       # Use KRaft mode by assigning both broker and controller roles
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@localhost:9093'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
       
       # Networking and Listeners
       KAFKA_LISTENERS: 'PLAINTEXT://:9092,CONTROLLER://:9093'
@@ -90,7 +90,7 @@ services:
     image: prom/alertmanager:v0.26.0
     container_name: logpilot-alertmanager
     ports:
-      - "9093:9093"
+      - "9094:9093"
     volumes:
       - ../../config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
     command:
