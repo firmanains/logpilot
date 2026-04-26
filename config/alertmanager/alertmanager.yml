@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'project_id']
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 1h
+  receiver: 'logpilot-dispatcher'
+
+receivers:
+  - name: 'logpilot-dispatcher'
+    webhook_configs:
+      - url: 'http://host.docker.internal:9090/webhook'
+        send_resolved: false

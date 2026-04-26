@@ -1,0 +1,27 @@
+# Env files (keep .env.example)
+.env
+!.env.example
+
+# Go
+*.exe
+*.test
+*.out
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Laravel
+services/laravel-api/vendor/
+services/laravel-api/storage/logs/
+
+# Next.js
+services/frontend/.next/
+services/frontend/node_modules/
