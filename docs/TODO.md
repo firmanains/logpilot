@@ -58,17 +58,17 @@
 - [x] Commit: `feat(ingestor): setup fiber http server with health endpoint`
 
 ### Chunk 1.2 — Struktur Folder & Config
-- [ ] Buat folder: `handler/`, `middleware/`, `enricher/`, `producer/`, `config/`
-- [ ] Buat `config/config.go` — load env variables (Redis URL, Kafka brokers, port)
-- [ ] Install godotenv untuk local dev: `go get github.com/joho/godotenv`
-- [ ] Buat `.env` file di folder ingestor (jangan di-commit, tambahkan ke `.gitignore`)
-- [ ] Commit: `chore(ingestor): setup folder structure and config loader`
+- [x] Buat folder: `handler/`, `middleware/`, `enricher/`, `producer/`, `config/`
+- [x] Buat `config/config.go` — load env variables (Redis URL, Kafka brokers, port)
+- [x] Install godotenv untuk local dev: `go get github.com/joho/godotenv`
+- [x] Buat `.env` file di folder ingestor (jangan di-commit, tambahkan ke `.gitignore`)
+- [x] Commit: `chore(ingestor): setup folder structure and config loader`
 
 ### Chunk 1.3 — Redis Client Setup
-- [ ] Install go-redis: `go get github.com/redis/go-redis/v9`
-- [ ] Buat `config/redis.go` — inisialisasi Redis client, ping saat startup
-- [ ] Pastikan ingestor bisa connect ke Redis yang ada di Docker Compose
-- [ ] Commit: `feat(ingestor): setup redis client`
+- [x] Install go-redis: `go get github.com/redis/go-redis/v9`
+- [x] Buat `config/redis.go` — inisialisasi Redis client, ping saat startup
+- [x] Pastikan ingestor bisa connect ke Redis yang ada di Docker Compose
+- [x] Commit: `feat(ingestor): setup redis client`
 
 ### Chunk 1.4 — Layer 1: Authentication Middleware
 - [ ] Buat `middleware/auth.go`
