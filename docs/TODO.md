@@ -71,14 +71,14 @@
 - [x] Commit: `feat(ingestor): setup redis client`
 
 ### Chunk 1.4 — Layer 1: Authentication Middleware
-- [ ] Buat `middleware/auth.go`
-- [ ] Logic: ambil header `X-API-Key`, GET dari Redis key `api_key:{value}`, dapat `project_id`
-- [ ] Jika key tidak ada di Redis → return 401 JSON `{"error": "unauthorized"}`
-- [ ] Jika ada → simpan `project_id` di Fiber context (`c.Locals`)
-- [ ] Register middleware ke route `/v1/ingest`
-- [ ] Test manual: seed dulu satu key ke Redis — `SET api_key:test123 project-test`
-- [ ] Curl dengan key valid → lanjut; tanpa key → 401
-- [ ] Commit: `feat(ingestor): layer 1 - api key authentication middleware`
+- [x] Buat `middleware/auth.go`
+- [x] Logic: ambil header `X-API-Key`, GET dari Redis key `api_key:{value}`, dapat `project_id`
+- [x] Jika key tidak ada di Redis → return 401 JSON `{"error": "unauthorized"}`
+- [x] Jika ada → simpan `project_id` di Fiber context (`c.Locals`)
+- [x] Register middleware ke route `/v1/ingest`
+- [x] Test manual: seed dulu satu key ke Redis — `SET api_key:test123 project-test`
+- [x] Curl dengan key valid → lanjut; tanpa key → 401
+- [x] Commit: `feat(ingestor): layer 1 - api key authentication middleware`
 
 ### Chunk 1.5 — Layer 2: Rate Limiting Middleware
 - [ ] Buat `middleware/ratelimit.go`

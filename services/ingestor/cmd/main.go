@@ -38,6 +38,7 @@ func main() {
 	v1 := app.Group("/v1")
 	v1.Post("/ingest",
 		middleware.Authentication(rdb),
+		middleware.RateLimit(rdb),
 		func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusOK).JSON(fiber.Map{
 				"message": "test aja placeholder",
