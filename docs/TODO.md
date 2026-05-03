@@ -50,12 +50,12 @@
 *Target: HTTP endpoint `/v1/ingest` bisa menerima log, validasi, dan publish ke Kafka.*
 
 ### Chunk 1.1 — Setup HTTP Server
-- [ ] Masuk ke `services/ingestor/`
-- [ ] Install Fiber: `go get github.com/gofiber/fiber/v2`
-- [ ] Buat `main.go` — setup Fiber app, register routes (kosong dulu)
-- [ ] Buat route `GET /health` yang return `{"status": "ok"}`
-- [ ] Test: `go run main.go` → curl `localhost:8080/health` → harus dapat response
-- [ ] Commit: `feat(ingestor): setup fiber http server with health endpoint`
+- [x] Masuk ke `services/ingestor/`
+- [x] Install Fiber: `go get github.com/gofiber/fiber/v2`
+- [x] Buat `main.go` — setup Fiber app, register routes (kosong dulu)
+- [x] Buat route `GET /health` yang return `{"status": "ok"}`
+- [x] Test: `go run main.go` → curl `localhost:8080/health` → harus dapat response
+- [x] Commit: `feat(ingestor): setup fiber http server with health endpoint`
 
 ### Chunk 1.2 — Struktur Folder & Config
 - [ ] Buat folder: `handler/`, `middleware/`, `enricher/`, `producer/`, `config/`
