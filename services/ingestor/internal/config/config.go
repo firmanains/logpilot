@@ -30,7 +30,7 @@ func LoadConfig(logger *zap.Logger) *Config {
 		kafkaBrokers = "localhost:9092"
 	}
 
-	kafkaTopic := os.Getenv("KAFKA_TOPIC")
+	kafkaTopic := os.Getenv("KAFKA_TOPIC_RAW_LOG")
 	if kafkaTopic == "" {
 		kafkaTopic = "raw-logs"
 	}
