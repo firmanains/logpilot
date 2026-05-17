@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/redis/go-redis/v9"
 )
 
-func RateLimit(rdb *redis.Client) fiber.Handler {
+func RateLimit(rdb RedisClient) fiber.Handler {
 	return func (c *fiber.Ctx) error {
 		projectID, _ := c.Locals(LocalKeyProjectID).(string)
 		key := fmt.Sprintf("rate:%s", projectID)

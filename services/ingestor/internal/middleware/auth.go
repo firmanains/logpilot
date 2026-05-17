@@ -5,12 +5,11 @@ import (
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/redis/go-redis/v9"
 )
 
-const LocalKeyProjectID = "projectID"
 
-func Authentication(rdb *redis.Client) fiber.Handler {
+
+func Authentication(rdb RedisClient) fiber.Handler {
 	return func (c *fiber.Ctx) error {
 		apiKey := c.Get("X-API-KEY")
 		if apiKey == "" {
