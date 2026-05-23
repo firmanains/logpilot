@@ -87,3 +87,28 @@ docker-compose restart kafka
 ```
 
 ======================================================================================
+
+## Issue #3 — consumer-storage Gagal Connect ke Kafka (`connection refused` di localhost:9092)
+
+### Symptom
+Menjalankan `go run cmd/main.go` di `consumer-storage` menghasilkan error:
+
+```
+failed to create consumer group: kafka: client has run out of available brokers to talk to: dial tcp [::1]:9092: connect: connection refused
+```
+
+### Root Cause
+Default config di `consumer-storage` menggunakan `localhost:9092` sebagai Kafka broker address. Port 9092 adalah PLAINTEXT listener yang hanya bisa diakses dari dalam Docker network, bukan dari host machine. Go service yang jalan di host Mac harus pakai EXTERNAL listener.
+
+### Solution
+Ubah Kafka broker address di `.env` consumer-storage (atau default config) dari `localhost:9092` ke `127.0.0.1:9093`:
+
+```
+KAFKA_BROKERS=127.0.0.1:9093
+```
+
+**Panduan:**
+- `kafka:9092` (PLAINTEXT) → dari dalam Docker network
+- `127.0.0.1:9093` (EXTERNAL) → dari host machine (Go service yang jalan di local)
+
+======================================================================================
