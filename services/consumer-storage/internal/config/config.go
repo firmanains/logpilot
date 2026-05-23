@@ -10,11 +10,12 @@ import (
 
 type Config struct {
 	Brokers    []string
-	Topics     string
+	Topics     []string
 	DBname     string
 	DBAddress  string
 	DBUsername string
 	DBPassword string
+	GroupID    string
 }
 
 func LoadConfig(logger *zap.Logger) *Config {
@@ -27,12 +28,13 @@ func LoadConfig(logger *zap.Logger) *Config {
 	if brokers == "" {
 		brokers = "localhost:9092"
 	}
-	Brokers := strings.Split(brokers, ",")
+	brokersArr := strings.Split(brokers, ",")
 
 	topics := os.Getenv("KAFKA_TOPICS")
 	if topics == "" {
 		topics = "raw-logs"
 	}
+	topicsArr := strings.Split(topics, ",")
 
 	dbName := os.Getenv("CLICKHOUSE_DB")
 	if dbName == "" {
@@ -51,13 +53,19 @@ func LoadConfig(logger *zap.Logger) *Config {
 
 	dbPassword := os.Getenv("CLICKHOUSE_PASSWORD")
 
+	groupID := os.Getenv("KAFKA_GROUP_ID")
+	if groupID == "" {
+		groupID = "storage-workers"
+	}
+
 	return &Config{
-		Brokers:    Brokers,
-		Topics:     topics,
+		Brokers:    brokersArr,
+		Topics:     topicsArr,
 		DBname:     dbName,
 		DBAddress:  dbAddress,
 		DBUsername: dbUsername,
 		DBPassword: dbPassword,
+		GroupID:    groupID,
 	}
 
 }
