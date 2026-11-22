@@ -5,7 +5,16 @@
 
 ---
 
-> ## ⚠️ UPDATE NOVEMBER 2026 (PRD v3.0) — Baca ini dulu
+> ## ⚠️ UPDATE 22 NOVEMBER 2026 (PRD v3.1) — Baca ini dulu
+>
+> Empat keputusan; rinciannya di changelog PRD v3.1.
+>
+> - **Phase 4 ditulis ulang untuk Go.** Laravel tidak dipakai lagi. Management API menjadi modul di service `services/api`, dan Query API (`S-1`) nanti masuk ke service yang sama sebagai modul `query` (PRD §4.6, §4.8). Nomor chunk 4.1–4.10 tetap.
+> - **Handler Monolog untuk PHP** sekarang butir Stretch pertama (PRD §12).
+> - **Perkakas platform dipasang satu per satu** dengan urutan di PRD §6.4. Berlaku untuk seluruh Phase P.
+> - **Tulisan teknis:** setiap kali chunk yang memuat masalah sulit selesai, tulis satu tulisan pendek di `docs/writing/` (PRD §7.5).
+
+> ## ⚠️ UPDATE NOVEMBER 2026 (PRD v3.0)
 >
 > PRD naik ke v3.0. Tiga hal berubah di file ini:
 >
@@ -449,63 +458,72 @@
 
 ---
 
-## 🎛️ PHASE 4 — Laravel API: Management Control Plane
+## 🎛️ PHASE 4 — Management API (Go): Control Plane
 *Target: Bisa manage projects, API keys, dan alert rules via REST API.*
 
-### Chunk 4.1 — Setup Laravel Project
-- [ ] Di `services/laravel-api/`: `composer create-project laravel/laravel .`
-- [ ] Install Sanctum: `composer require laravel/sanctum`, publish config
-- [ ] Konfigurasi `.env`: DB_CONNECTION=pgsql, DB_DATABASE=logpilot, dll
-- [ ] Test: `php artisan serve` → bisa akses `http://localhost:8000`
-- [ ] Commit: `chore(laravel-api): laravel project setup with sanctum`
+> 🔧 **KOREKSI v3.1** — phase ini sebelumnya memakai Laravel. Sekarang Go, di service `services/api` yang nanti juga memuat Query API (`S-1`). Rancangannya ada di PRD §4.6.
 
-### Chunk 4.2 — Database Migration: Users & Projects
-- [ ] Buat migration untuk tabel `users` (sudah ada default Laravel, cukup review)
-- [ ] Buat migration untuk tabel `projects`:
+### Chunk 4.1 — Setup service `api`
+- [ ] Buat `services/api/` sebagai Go module baru dan daftarkan di `go.work`
+- [ ] Dua listener: `:8081` untuk `/api/*` (publik) dan `:8082` untuk `/internal/*`
+- [ ] `/health`, `/ready`, `/metrics`, konfigurasi dari env, logging JSON, graceful shutdown (pola yang sama dengan Ingestor)
+- [ ] Koneksi PostgreSQL (`pgx`) dan Redis; `/ready` gagal kalau PostgreSQL tidak terjangkau
+- [ ] Test: `curl localhost:8081/health` dan `curl localhost:8082/health` sama-sama 200
+- [ ] Commit: `chore(api): service skeleton with public and internal listeners`
+
+> **📖 Pahami dulu:** kenapa `/internal/*` diberi port sendiri, bukan sekadar prefix path. Jawabannya ada di PRD §4.6 bagian "Dua listener".
+
+### Chunk 4.2 — Database Migration: Users, Sessions & Projects
+- [ ] Pilih satu alat migrasi (goose atau golang-migrate) dan tulis alasannya satu paragraf di `docs/DESIGN-DECISIONS.md`
+- [ ] `migrations/postgres/001_...sql`: tabel `users` (id, name, email unik, password, created_at)
+- [ ] Tabel `sessions` (id, user_id FK, token_hash unik, expires_at, created_at)
+- [ ] Tabel `projects`:
   ```
   id, user_id (FK), name, slug (unique), created_at, updated_at
   ```
-- [ ] Jalankan `php artisan migrate`
-- [ ] Commit: `chore(laravel-api): users and projects migration`
+- [ ] Jalankan migrasi, verifikasi tabel ada; jalankan sekali lagi dan pastikan tidak ada yang berubah
+- [ ] Commit: `chore(api): users, sessions and projects migration`
 
 ### Chunk 4.3 — Database Migration: API Keys & Alert Rules
-- [ ] Buat migration untuk `api_keys`:
+- [ ] Migrasi untuk `api_keys`:
   ```
   id, project_id (FK), name, key_hash, last_used_at, created_at
   ```
-- [ ] Buat migration untuk `alert_rules`:
+- [ ] Migrasi untuk `alert_rules`:
   ```
   id, project_id (FK), name, condition (JSON), threshold, window_seconds, cooldown_seconds, is_active (bool)
   ```
-- [ ] Buat migration untuk `notification_configs` dan `alert_logs` sesuai PRD
-- [ ] Jalankan migrate, verifikasi semua tabel ada
-- [ ] Commit: `chore(laravel-api): api_keys, alert_rules, notification_configs migrations`
+- [ ] Migrasi untuk `notification_configs` dan `alert_logs` sesuai PRD
+- [ ] Jalankan migrasi, verifikasi semua tabel ada
+- [ ] Commit: `chore(api): api_keys, alert_rules, notification_configs migrations`
 
 ### Chunk 4.4 — Auth Endpoints
-- [ ] Buat `AuthController` dengan method `register` dan `login`
-- [ ] Register: validasi email unik, hash password, return user
-- [ ] Login: validasi credentials, `createToken()` Sanctum, return token
-- [ ] Register route di `routes/api.php`
-- [ ] Test dengan Postman/curl: register → login → dapat token
-- [ ] Commit: `feat(laravel-api): auth register and login endpoints`
+- [ ] `POST /api/auth/register`: validasi email unik, hash password dengan bcrypt, return user
+- [ ] `POST /api/auth/login`: cek password, buat session token 32 byte dari `crypto/rand`, simpan **SHA-256**-nya di `sessions` dengan `expires_at`, return token sekali
+- [ ] Middleware sesi: hash token dari header, cari di `sessions`, tolak kalau tidak ada atau kedaluwarsa, taruh `user_id` di context
+- [ ] `POST /api/auth/logout`: hapus baris sesi
+- [ ] Test dengan curl: register → login → dapat token → logout → token yang sama ditolak
+- [ ] Commit: `feat(api): register, login, logout and session middleware`
+
+> **❓ Bisa jawab ini?** Kenapa session token disimpan sebagai hash, padahal ia acak dan bukan password? Kenapa endpoint management memakai sesi yang dicek ke database, sedangkan jalur baca nanti memakai JWT (PRD §4.6 "Sesi User", §4.8)?
 
 ### Chunk 4.5 — Project Endpoints
-- [ ] Buat `ProjectController` dengan method `index` dan `store`
-- [ ] `store`: validasi nama, generate slug (dari nama), simpan dengan `user_id` dari auth
-- [ ] `index`: return hanya project milik user yang sedang login
-- [ ] Protect route dengan `auth:sanctum` middleware
-- [ ] Commit: `feat(laravel-api): project CRUD endpoints`
+- [ ] `POST /api/projects`: validasi nama, generate slug dari nama, simpan dengan `user_id` dari context
+- [ ] `GET /api/projects`: return hanya project milik user yang sedang login
+- [ ] Semua route `/api/projects*` berada di belakang middleware sesi
+- [ ] Test: user A tidak melihat project user B
+- [ ] Commit: `feat(api): project endpoints`
 
 ### Chunk 4.6 — API Key Management
-- [ ] Buat `ApiKeyController` dengan method `store` dan `destroy`
-- [ ] `store`:
-  - Generate plain key: `logpilot_` + random 32 char (**pakai CSPRNG** — `random_bytes()` di PHP, jangan `rand()` atau `Str::random()` biasa)
+- [ ] `POST /api/projects/{id}/api-keys` dan `DELETE /api/projects/{id}/api-keys/{keyId}`
+- [ ] Saat membuat key:
+  - Generate plain key: `logpilot_` + random 32 char (**pakai CSPRNG** — `crypto/rand`, jangan `math/rand`)
   - Simpan `key_hash` = **SHA-256** ke PostgreSQL
   - 🔧 **REVISI** — Seed ke Redis pakai **hash**, bukan plain: `SET api_key:{sha256(plain_key)} {project_id}`
   - Return plain key ke user (HANYA sekali, tidak bisa dilihat lagi)
 - [ ] 🔧 **REVISI** — Update `middleware/auth.go` di Ingestor (Chunk 1.4): hash dulu key dari header, baru lookup ke Redis
-- [ ] `destroy`: hapus dari PostgreSQL + hapus dari Redis (pakai hash sebagai key juga)
-- [ ] Commit: `feat(laravel-api): api key generate and revoke`
+- [ ] Saat mencabut key: hapus dari PostgreSQL + hapus dari Redis (pakai hash sebagai key juga)
+- [ ] Commit: `feat(api): api key generate and revoke`
 
 > **📖 Kenapa direvisi:** versi lama simpan hash di PostgreSQL tapi **plaintext di Redis**. Kalau Redis bocor (dan Redis paling sering di-expose tanpa password di setup dev), semua API key semua tenant bocor sekaligus. Hash di PostgreSQL jadi tidak ada gunanya — kamu menutup pintu depan tapi jendelanya dibiarkan terbuka.
 >
@@ -514,30 +532,30 @@
 > *Ini pertanyaan interview yang sering muncul: "kenapa password pakai bcrypt tapi API key pakai SHA-256?" Sekarang kamu punya jawabannya.*
 
 ### Chunk 4.7 — Alert Rule Endpoints
-- [ ] Buat `AlertRuleController` dengan method `index`, `store`, `update`, `destroy`
+- [ ] Endpoint alert rule: list, buat, ubah, hapus (`/api/projects/{id}/alert-rules`)
 - [ ] Validasi: threshold dan window_seconds harus positif integer
 - [ ] `condition` disimpan sebagai JSON column
-- [ ] Commit: `feat(laravel-api): alert rule CRUD endpoints`
+- [ ] Commit: `feat(api): alert rule CRUD endpoints`
 
 ### Chunk 4.8 — Notification Config Endpoint
-- [ ] Buat `NotificationController` dengan method `update` dan `show`
+- [ ] Endpoint notification config: ubah dan baca
 - [ ] `PUT /api/projects/{id}/notifications` — upsert config
-- [ ] `GET /internal/projects/{id}/notifications` — endpoint untuk Alert Dispatcher (tanpa auth Sanctum, pakai internal secret header)
-- [ ] Commit: `feat(laravel-api): notification config endpoints`
+- [ ] `GET /internal/projects/{id}/notifications` — endpoint untuk Alert Dispatcher, di listener internal `:8082` (tanpa sesi user, pakai internal secret header)
+- [ ] Commit: `feat(api): notification config endpoints`
 
 ### Chunk 4.9 — Update Consumer Alert: Baca Rules dari DB
 - [ ] Kembali ke `services/consumer-alert/`
 - [ ] Update `evaluator/cache.go`: ganti hardcode rules dengan HTTP call ke `GET /internal/alert-rules/{project_id}`
   - Atau langsung query PostgreSQL — pilih yang lebih simple dulu
 - [ ] Refresh tiap 30 detik (sudah ada skeleton dari Chunk 3.2)
-- [ ] Test: buat rule via Laravel API → dalam 30 detik rule aktif di Consumer 2
-- [ ] Commit: `feat(consumer-alert): load alert rules from laravel api`
+- [ ] Test: buat rule via Management API → dalam 30 detik rule aktif di Consumer 2
+- [ ] Commit: `feat(consumer-alert): load alert rules from management api`
 
 ### Chunk 4.10 — Update Alert Dispatcher: Baca Notif Config dari DB
 - [ ] Kembali ke `services/alert-dispatcher/`
 - [ ] Saat terima webhook dari Alertmanager: query `GET /internal/projects/{id}/notifications`
 - [ ] Gunakan config tersebut untuk ClickUp list_id, email recipients, dll
-- [ ] Commit: `feat(alert-dispatcher): load notification config from laravel api`
+- [ ] Commit: `feat(alert-dispatcher): load notification config from management api`
 
 ---
 
@@ -548,7 +566,7 @@
 - [ ] Di `services/frontend/`: `npx create-next-app@latest . --typescript --tailwind`
 - [ ] Test: `npm run dev` → bisa akses `localhost:3000`
 - [ ] Install axios atau fetch wrapper: `npm install axios`
-- [ ] Setup base API URL ke Laravel (`http://localhost:8000`)
+- [ ] Setup base API URL ke service `api` (`http://localhost:8081`)
 - [ ] Commit: `chore(frontend): next.js project setup`
 
 ### Chunk 5.2 — Halaman Login & Register
@@ -632,7 +650,7 @@
 
 ### Chunk 7.2 — Dockerfile per Service
 - [ ] Buat `Dockerfile` untuk setiap Go service (multi-stage build)
-- [ ] Buat `Dockerfile` untuk Laravel API
+- [ ] Buat `Dockerfile` untuk service `api`
 - [ ] Buat `Dockerfile` untuk Next.js frontend
 - [ ] Update `docker-compose.yml` untuk include custom services
 
@@ -1094,11 +1112,11 @@
 > - **Thundering herd** — Redis kosong, 1.000 request masuk bersamaan, semuanya cache miss, semuanya menghantam PostgreSQL di detik yang sama → PostgreSQL ikut tumbang. Solusi: `singleflight` (di Go: `golang.org/x/sync/singleflight`) yang menggabungkan permintaan identik yang bersamaan menjadi satu query.
 > - **Negative caching** — kalau seseorang menyerang dengan API key acak, setiap key salah = satu query PostgreSQL. Solusi: cache hasil "key ini tidak valid" juga, dengan TTL pendek (30 detik).
 
-- [ ] Tambah endpoint internal di Laravel: `GET /internal/api-keys/{hash}` → return `project_id` atau 404
+- [ ] Tambah endpoint internal di Management API: `GET /internal/api-keys/{hash}` → return `project_id` atau 404
 - [ ] Update `middleware/auth.go` di Ingestor:
   1. Lookup Redis
   2. Kalau **hit** → lanjut
-  3. Kalau **miss** → panggil Laravel internal endpoint (dibungkus `singleflight`)
+  3. Kalau **miss** → panggil internal endpoint Management API (dibungkus `singleflight`)
   4. Kalau ketemu → tulis balik ke Redis dengan TTL 1 jam, lanjut
   5. Kalau tidak ketemu → cache negatif `api_key_invalid:{hash}` TTL 30 detik, return 401
 - [ ] Kalau **Redis-nya sendiri yang down** (bukan cache miss) → jangan langsung tolak semua. Pakai in-memory cache di dalam pod sebagai lapisan terakhir (TTL 5 menit), dan naikkan alarm
@@ -1279,13 +1297,13 @@
 >
 > **1. Consumer 2 memproses satu per satu.** PRD Section 4.4 bilang *"Poll 1 message dari Kafka"*. Sementara Consumer 1 memproses 500 sekaligus. Kalau tiap message butuh beberapa round-trip Redis, di 1.000 log/detik Consumer 2 akan tertinggal jauh — dan alert kamu jadi terlambat, yang menghapus seluruh gunanya alerting.
 >
-> **2. Alert Dispatcher memanggil Laravel setiap alert, secara sinkron.** Kalau Laravel sedang restart atau lambat, alert gagal terkirim — tepat pada momen ketika alert paling dibutuhkan. Komponen di jalur kritis tidak boleh bergantung sinkron pada komponen yang bukan jalur kritis.
+> **2. Alert Dispatcher memanggil Management API setiap alert, secara sinkron.** Kalau Management API sedang restart atau lambat, alert gagal terkirim — tepat pada momen ketika alert paling dibutuhkan. Komponen di jalur kritis tidak boleh bergantung sinkron pada komponen yang bukan jalur kritis.
 
 - [ ] Consumer 2: ubah jadi batch poll (100 message), kelompokkan berdasarkan rule, lalu increment sekali per rule per batch dengan `INCRBY` — bukan `INCR` berkali-kali
 - [ ] Gabungkan semua operasi Redis dalam satu batch ke dalam satu pipeline
 - [ ] Alert Dispatcher: cache notification config di memory dengan TTL 60 detik
-- [ ] Kalau Laravel down dan cache kosong → tetap kirim ke destination default dari env var, jangan diam saja
-- [ ] Tambah timeout 3 detik + circuit breaker untuk panggilan ke Laravel
+- [ ] Kalau Management API down dan cache kosong → tetap kirim ke destination default dari env var, jangan diam saja
+- [ ] Tambah timeout 3 detik + circuit breaker untuk panggilan ke Management API
 - [ ] Benchmark Consumer 2 sebelum dan sesudah: berapa message/detik
 - [ ] Commit: `perf(consumer-alert): batch evaluation with redis pipeline`
 
@@ -1544,7 +1562,7 @@
 - [ ] Skenario 1 — **ClickHouse mati 2 menit** saat 500 log/s mengalir. Harapan: nol log hilang, consumer lag naik lalu pulih
 - [ ] Skenario 2 — **Redis mati**. Harapan: auth tetap jalan lewat fallback (`R-I4`)
 - [ ] Skenario 3 — **Kafka mati**. Harapan: Ingestor membalas 503, bukan 202 palsu (`R-I8`)
-- [ ] Skenario 4 — **Laravel mati** saat alert terpicu. Harapan: alert tetap terkirim dari cache (`R-I11`)
+- [ ] Skenario 4 — **Management API mati** saat alert terpicu. Harapan: alert tetap terkirim dari cache (`R-I11`)
 - [ ] Skenario 5 — **Consumer di-`kill -9`** di tengah batch. Harapan: tidak ada log hilang, tidak ada duplikat (`R-I5`)
 - [ ] Skenario 6 — **Disk ClickHouse penuh**. Harapan: gagal dengan jelas, tidak diam-diam kehilangan data
 - [ ] Skenario 7 — **Network partition** antara consumer dan Kafka (pakai `tc netem` atau `docker network disconnect`)
@@ -1606,10 +1624,10 @@
 > Mulai setelah M5 (fingerprinting jalan). Sebelum itu, Console tidak punya apa-apa untuk ditampilkan.
 
 ### Chunk S-1 — Query API: kerangka + isolasi tenant 🔥
-- [ ] Service `services/query-api` dengan `/health`, `/ready`, `/metrics`
+- [ ] Modul `query` di `services/api` (service yang sama dengan Management API, PRD v3.1 §4.8); `/health`, `/ready`, `/metrics` sudah ada dari Chunk 4.1
 - [ ] Verifikasi JWT (EdDSA, kunci publik saja); `project_id` hanya dari token
 - [ ] User ClickHouse `readonly` dengan profil batas (`max_execution_time`, `max_rows_to_read`, `max_memory_usage`)
-- [ ] Endpoint Laravel `POST /api/projects/{id}/query-token`
+- [ ] Endpoint Management API `POST /api/projects/{id}/query-token`
 - [ ] Test: token project A tidak bisa membaca project B (F18)
 - **Selesai kalau:** F18 lulus di CI. Ini sekaligus menutup `R-S6`.
 
@@ -1654,6 +1672,8 @@
 ---
 
 ## ⚙️ PHASE P — Platform & DevOps (PRD v3.0 §6)
+
+> 🔧 **KOREKSI v3.1** — perkakas platform dipasang satu per satu, satu per sesi, dengan urutan di PRD §6.4. Jangan memasang yang berikutnya sebelum yang terakhir dipakai satu beban kerja dan pemakaian memorinya tercatat di `docs/CAPACITY.md`.
 
 > `P-1` sampai `P-4` boleh dikerjakan kapan saja setelah M1, dengan Ingestor sebagai satu-satunya beban kerja. Sisanya setelah M6.
 > Bahan pendamping: `~/Developer/Belajar/devops-kubernetes/` (Lab 1–3).
@@ -1750,7 +1770,7 @@
 | Phase 1 — Ingestor | ✅ Done | 2026-05-17 |
 | Phase 2 — Storage Worker | 🟡 In progress | — |
 | Phase 3 — Alert Pipeline | ⬜ Not started | — |
-| Phase 4 — Laravel API | ⬜ Not started | — |
+| Phase 4 — Management API (Go) | ⬜ Not started | — |
 | Phase 5 — Frontend | ⬜ Not started | — |
 | Phase 6 — Demo App | ⬜ Not started | — |
 | Phase 7 — Polish | ⬜ Not started | — |

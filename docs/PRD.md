@@ -1,5 +1,18 @@
 # LogPilot — Product Requirements Document
-**Version 3.0 | November 2026 | Author: Firman**
+**Version 3.1 | November 2026 | Author: Firman**
+
+> **Changelog v3.0 → v3.1** (22 November 2026)
+>
+> Empat keputusan setelah review rencana. Pipeline inti tidak berubah.
+>
+> 1. **Laravel API diganti Go** (§4.6). Management API menjadi modul di dalam satu service `api` bersama Query API (§4.8). Endpoint `/internal/*` pindah ke listener terpisah yang tidak keluar lewat Ingress. Alasannya: satu bahasa, satu service lebih sedikit, dan sisi PHP ditunjukkan lewat handler Monolog (butir 2), bukan lewat control plane.
+> 2. **Handler Monolog untuk PHP naik menjadi butir Stretch pertama** (§12), di atas ringkasan insiden dengan LLM.
+> 3. **Perkakas platform dipasang satu per satu** (§6.4): urutan tetap, satu perkakas per sesi, dan boleh berhenti sebelum semuanya terpasang.
+> 4. **Tulisan teknis pendek per masalah sulit** menjadi bagian dari deliverable (§7.5).
+>
+> Positioning proyek ditulis eksplisit di §1.4: backend engineer yang memahami platform dan DevOps.
+>
+> Ditunda: baris biaya VPS per bulan di README.
 
 > **Changelog v2.0 → v3.0**
 >
@@ -76,7 +89,7 @@ LogPilot menyediakan:
 - **LogPilot Console** (Next.js): Live Tail, Explorer, Issues, dan Trace waterfall dalam satu UI, ditenagai **Query API** yang mengisolasi data per project.
 - Grafana untuk dashboard kesehatan LogPilot sendiri (consumer lag, throughput, latency).
 - Alert engine dengan bucketed sliding window counter, alert *new issue* dan *regression*, dan notifikasi ke ClickUp, Email, dan Slack.
-- Laravel API sebagai control plane untuk project, API key, dan alert rules.
+- Management API (Go, satu service dengan Query API) sebagai control plane untuk project, API key, dan alert rules.
 - **Live demo publik** yang berjalan di Kubernetes (k3s) dan di-deploy lewat GitOps.
 
 ### 1.4 Target Audience
@@ -88,6 +101,8 @@ LogPilot menyediakan:
 | Engineering Manager | Visibilitas across services | Halaman Issues per project, berapa issue distinct per minggu |
 | HR / Recruiter (non-teknis) | Menilai dalam 60 detik tanpa instal apa pun | Buka URL demo, lihat log mengalir, tekan "Simulasikan insiden", lihat 50.000 error menjadi 5 issue |
 | Interviewer (teknis) | Menguji kedalaman | README dengan angka terukur, `DESIGN-DECISIONS.md`, repo GitOps, chaos test |
+
+**Positioning (v3.1).** Proyek ini menampilkan pemiliknya sebagai backend engineer yang memahami platform dan DevOps. Backend adalah wajah depannya: pipeline, keandalan data, dan angka terukur. Platform adalah buktinya bahwa sistem yang sama bisa ia deploy, pulihkan, dan skalakan sendiri. Keduanya satu cerita, jadi tidak ada tier yang dibuang demi yang lain; yang diatur hanya urutan polesannya.
 
 ---
 
@@ -124,10 +139,10 @@ v2.0 menjadwalkan semuanya dalam 8 minggu dan tidak ada yang selesai tepat waktu
 
 | Tier | Isi | Exit demo (bukti tier ini selesai) |
 |---|---|---|
-| **1. Core** | Ingestor, Kafka, Consumer 1, ClickHouse, trace context, Consumer 2, Alertmanager, Dispatcher, Laravel API minimum, SDK, fingerprinting | `curl` satu log → muncul di ClickHouse; 50.000 error → 5 baris di query issue; alert masuk ke ClickUp |
+| **1. Core** | Ingestor, Kafka, Consumer 1, ClickHouse, trace context, Consumer 2, Alertmanager, Dispatcher, Management API minimum, SDK, fingerprinting | `curl` satu log → muncul di ClickHouse; 50.000 error → 5 baris di query issue; alert masuk ke ClickUp |
 | **2. Showcase** | Query API, Console (onboarding, Live Tail, Explorer, Issues, Trace waterfall), issue lifecycle, alert new issue/regression, tombol simulasi insiden, README dengan GIF | Orang non-teknis membuka Console di lokal dan memahami demo tanpa dijelaskan |
 | **3. Platform** | k3s di VPS, Helm chart, ingress + TLS, GitOps, operator Kafka/ClickHouse, KEDA, kube-prometheus-stack, backup, live demo publik | URL publik ber-HTTPS; `git push` → ter-deploy sendiri; pod dibunuh → pulih tanpa kehilangan log |
-| **4. Stretch** | Ringkasan insiden dengan LLM, SLO burn-rate alert, cold storage ke object storage, handler Monolog untuk Laravel, dogfooding, cluster kubeadm multi-node | Masing-masing berdiri sendiri; tidak ada yang wajib |
+| **4. Stretch** | Handler Monolog untuk PHP, ringkasan insiden dengan LLM, SLO burn-rate alert, cold storage ke object storage, dogfooding, cluster kubeadm multi-node | Masing-masing berdiri sendiri; tidak ada yang wajib |
 
 **Aturan gerbang:**
 1. Tier berikutnya baru dimulai setelah exit demo tier sebelumnya direkam (video pendek atau GIF di `docs/demo/`).
@@ -150,7 +165,7 @@ v2.0 menjadwalkan semuanya dalam 8 minggu dan tidak ada yang selesai tepat waktu
 | Presentation Layer | LogPilot Console (Next.js), Grafana | Console untuk tenant (log, issue, trace, konfigurasi). Grafana untuk operator (kesehatan sistem) |
 | Alerting Layer | Alertmanager, Alert Dispatcher | Grouping/dedup/silencing alert, routing notifikasi |
 | Observability Layer | Prometheus, kafka-exporter | Monitoring LogPilot itu sendiri — consumer lag, latency, error rate |
-| Management Layer | Laravel API, PostgreSQL, Redis | Control plane: auth, project, API key, alert rules, notification config, status issue |
+| Management Layer | Management API (Go, satu service `api` dengan Query API), PostgreSQL, Redis | Control plane: auth, project, API key, alert rules, notification config, status issue |
 | **Platform Layer** | **Kubernetes (k3s), Helm, Argo CD, ingress-nginx, cert-manager** | **Baru di v3.0.** Menjalankan, memperbarui, dan memulihkan semua lapisan di atas |
 
 **Catatan arsitektur — satu pintu baca.** Simetris dengan "satu pintu masuk" di sisi tulis. Di v2.0 tenant membaca lewat Grafana yang terhubung langsung ke ClickHouse dengan satu kredensial, sehingga tidak ada yang mencegah query ke `project_id` milik orang lain. Di v3.0 semua pembacaan tenant melewati Query API, yang mengambil `project_id` dari token dan tidak pernah dari parameter request.
@@ -168,7 +183,7 @@ v2.0 menjadwalkan semuanya dalam 8 minggu dan tidak ada yang selesai tepat waktu
 7. **Consumer 2 (Alert Evaluator)** poll Kafka secara batch dan independen, load alert rules dari cache, evaluasi kondisi, increment bucketed counter di Redis.
 8. Jika total counter dalam window melewati threshold **dan** tidak ada cooldown aktif, Consumer 2 melakukan `POST /api/v2/alerts` ke **Alertmanager**, menulis salinan ke Kafka topic `alert-events` sebagai audit trail, lalu set cooldown di Redis.
 9. **Alertmanager** melakukan grouping, deduplication, dan inhibition, lalu mengirim webhook ke Go Alert Dispatcher.
-10. **Alert Dispatcher** mengambil notification config dari cache lokal (fallback ke Laravel API), lalu mengirim ke ClickUp API, SendGrid, dan Slack secara concurrent via goroutine.
+10. **Alert Dispatcher** mengambil notification config dari cache lokal (fallback ke Management API), lalu mengirim ke ClickUp API, SendGrid, dan Slack secara concurrent via goroutine.
 11. **Developer** membuka Console: mulai dari halaman Issues (agregasi per fingerprint), klik satu issue, buka exemplar `trace_id` sebagai waterfall untuk melihat seluruh log satu request. Console memanggil **Query API**, yang menerjemahkannya menjadi SQL ClickHouse dengan filter `project_id` dari token.
 12. Untuk **Live Tail**, Query API membaca topic `raw-logs` langsung dari Kafka (tanpa consumer group) dan meneruskannya ke browser lewat Server-Sent Events.
 13. **Prometheus** men-scrape `/metrics` semua service dan kafka-exporter, sehingga kesehatan LogPilot sendiri terpantau di Grafana.
@@ -188,7 +203,7 @@ v2.0 menjadwalkan semuanya dalam 8 minggu dan tidak ada yang selesai tepat waktu
 | Consumer 1 & 2 | Go + sarama | Native Kafka client untuk Go, production battle-tested |
 | Alert Dispatcher | Go | Concurrent goroutine untuk kirim ke multiple destination |
 | Query API | Go + Fiber, SSE | **Baru di v3.0.** Jalur baca tenant; Live Tail lewat Server-Sent Events (satu arah, cukup HTTP biasa, lolos proxy tanpa konfigurasi WebSocket) |
-| Laravel API | PHP Laravel + Sanctum | Familiar, rapid development untuk management/control plane. Menerbitkan JWT berumur pendek untuk Query API |
+| Management API | Go + Fiber, satu service `api` dengan Query API | **v3.1, menggantikan Laravel.** Control plane: sesi user, project, API key, alert rule. Menerbitkan JWT berumur pendek untuk jalur baca (§4.8) |
 | Frontend | Next.js + TypeScript | Modern, SSR support, familiar di stack AHU |
 | Message Bus | Apache Kafka (KRaft) | Durability, fan-out, replay capability, industry standard. KRaft mode — tanpa Zookeeper |
 | Log Storage | ClickHouse | Columnar DB dioptimasi untuk log analytics, sangat cepat untuk append + query besar |
@@ -295,7 +310,7 @@ Contoh body `207`:
 
 | Layer | Proses | Gagal → Response |
 |---|---|---|
-| 1. Authentication | `GET api_key:{sha256(value)}` dari Redis → `project_id`. Kalau miss, fallback ke Laravel internal endpoint (dibungkus `singleflight`), lalu isi ulang cache | 401 Unauthorized |
+| 1. Authentication | `GET api_key:{sha256(value)}` dari Redis → `project_id`. Kalau miss, fallback ke internal endpoint Management API (dibungkus `singleflight`), lalu isi ulang cache | 401 Unauthorized |
 | 2. Rate Limiting | Lua atomic: `INCRBY rate:{project_id}:{menit} {jumlah_log}`, `EXPIRE` hanya saat key lahir. Batas diambil dari kuota project (default 10.000/menit) | 429 + `Retry-After` = sisa detik window |
 | 3. Validation | Field wajib: level, message, service, timestamp. Format ISO 8601. Format trace_id (32 hex) & span_id (16 hex) kalau diisi. **Clock skew guard** | 400 + detail per field |
 | 4. Enrichment | Tambah `project_id`, `ingested_at`, `ingestor_id`. Promosikan field yang dikenal dari `metadata` ke kolom sendiri, sisanya ke `attributes` (maks 32 key) | — |
@@ -366,7 +381,7 @@ ERROR dan FATAL tidak pernah dibuang — justru log itulah yang paling dibutuhka
 | `raw-logs` | 6 | 7 hari | `project_id` | Go Ingestor |
 | `alert-events` | 1 | 1 hari | — | Consumer 2 (audit trail) |
 | `raw-logs-dlq` | 1 | 30 hari | — | Consumer 1 (poison message) |
-| `issue-events` | 1 | 7 hari | `project_id` | Consumer 2 (`new_issue`, `reopened`), dikonsumsi Laravel (§5.5) |
+| `issue-events` | 1 | 7 hari | `project_id` | Consumer 2 (`new_issue`, `reopened`), dikonsumsi Management API (§5.5) |
 
 **Consumer Groups:**
 - `storage-workers` — Consumer 1, baca topic `raw-logs`, commit offset setelah batch insert berhasil.
@@ -552,7 +567,7 @@ Untuk keperluan alerting, ketidakakuratan ±10 detik sepenuhnya dapat diterima. 
 #### Evaluasi Flow
 
 1. Poll batch (100 message) dari Kafka.
-2. Load alert rules dari memory cache (refresh tiap 30 detik dari Laravel API / PostgreSQL).
+2. Load alert rules dari memory cache (refresh tiap 30 detik dari Management API / PostgreSQL).
 3. Untuk setiap log, cek terhadap setiap rule dengan `project_id` yang cocok.
 4. Kelompokkan match per rule, lalu `INCRBY` sekali per rule per batch — bukan `INCR` per log.
 5. **Selalu increment, tanpa syarat.** Hitung total window.
@@ -604,22 +619,30 @@ Go service yang menerima webhook dari Alertmanager dan mendistribusikan notifika
 
 Semua destination dikirim secara **concurrent** menggunakan Go goroutine dengan timeout 10 detik per destination via `context`.
 
-**Notification config di-cache di memory dengan TTL 60 detik.** v1.0 menyatakan Dispatcher melakukan query ke Laravel API pada setiap alert secara sinkron — artinya kalau Laravel sedang restart atau lambat, alert gagal terkirim tepat pada momen alert paling dibutuhkan. Komponen di jalur kritis tidak boleh bergantung secara sinkron pada komponen yang bukan jalur kritis.
+**Notification config di-cache di memory dengan TTL 60 detik.** v1.0 menyatakan Dispatcher melakukan query ke Management API pada setiap alert secara sinkron — artinya kalau Management API sedang restart atau lambat, alert gagal terkirim tepat pada momen alert paling dibutuhkan. Komponen di jalur kritis tidak boleh bergantung secara sinkron pada komponen yang bukan jalur kritis.
 
-Bila Laravel tidak dapat dihubungi dan cache kosong, Dispatcher tetap mengirim ke destination default dari environment variable. Panggilan ke Laravel dibatasi timeout 3 detik dan dilindungi circuit breaker.
+Bila Management API tidak dapat dihubungi dan cache kosong, Dispatcher tetap mengirim ke destination default dari environment variable. Panggilan ke Management API dibatasi timeout 3 detik dan dilindungi circuit breaker.
 
 ---
 
-### 4.6 Laravel API — Management Control Plane
+### 4.6 Management API (Go) — Control Plane
 
-Laravel API adalah backend dari management UI. Tidak berada di data path log — hanya mengelola konfigurasi yang digunakan service lain, ditambah satu peran baru: **sumber kebenaran saat cache Redis miss**.
+> **v3.1.** Bagian ini sebelumnya ditulis untuk Laravel. Management API sekarang ditulis dengan Go dan berjalan dalam **satu service `api`** bersama Query API (§4.8): satu binary, satu image, dua kelompok route.
+
+**Kenapa bukan Laravel lagi.** Laravel menambah satu bahasa, satu image, dan satu cara deploy hanya untuk CRUD project, API key, dan alert rule. Dengan Go, semua service memakai pola yang sama untuk konfigurasi, logging, metrik, health check, dan graceful shutdown. Sisi PHP proyek ini ditunjukkan oleh handler Monolog (§12), yang menempatkan aplikasi PHP sebagai pengirim log.
+
+**Kenapa satu service dengan Query API, bukan dua.** Keduanya HTTP untuk tenant, memakai sesi dan token yang sama, dan sama-sama membaca PostgreSQL. Memisahkannya berarti satu Deployment, satu pipeline, dan satu jalur token antar-service tambahan tanpa beban yang membenarkannya. Batasnya dijaga di dalam kode: package `management` dan `query` tidak saling mengimpor, dan `query` hanya mempercayai JWT (§4.8), sehingga memisahkannya nanti cukup memindahkan package. Tanda sudah waktunya dipisah: Live Tail atau query berat mulai mengganggu latency endpoint management, atau keduanya butuh jumlah replika yang berbeda.
+
+**Dua listener.** Port 8081 melayani `/api/*` dan `/v1/*` dan keluar lewat Ingress. Port 8082 melayani `/internal/*` dan tidak punya Ingress; hanya Ingestor dan Alert Dispatcher yang boleh menjangkaunya (NetworkPolicy, §6.3). NetworkPolicy bekerja per port, bukan per path, jadi endpoint internal yang berbagi port dengan endpoint publik tidak bisa dilindungi olehnya.
+
+Management API adalah backend dari management UI. Tidak berada di data path log — hanya mengelola konfigurasi yang digunakan service lain, ditambah satu peran baru: **sumber kebenaran saat cache Redis miss**.
 
 #### Endpoints
 
 | Method | Path | Fungsi | Side Effect |
 |---|---|---|---|
 | POST | `/api/auth/register` | Register user baru | — |
-| POST | `/api/auth/login` | Login, return Sanctum token | — |
+| POST | `/api/auth/login` | Login, return session token (opaque, bisa dicabut) | — |
 | POST | `/api/projects` | Buat project baru | Insert ke PostgreSQL |
 | GET | `/api/projects` | List semua project milik user | — |
 | POST | `/api/projects/{id}/api-keys` | Generate API key baru | Insert hash ke PostgreSQL + seed **hash** ke Redis |
@@ -634,13 +657,19 @@ Laravel API adalah backend dari management UI. Tidak berada di data path log —
 | POST | `/api/projects/{id}/query-token` | **v3.0.** Terbitkan JWT 15 menit untuk Query API (§4.8) | — |
 | PUT | `/api/projects/{id}/issues/{fingerprint}` | **v3.0.** Ubah status issue: `open`, `resolved`, `ignored` | Update PostgreSQL + set `issue_resolved` di Redis |
 
-Endpoint `/internal/*` tidak memakai Sanctum; autentikasinya lewat internal secret header.
+Endpoint `/internal/*` dilayani listener internal (port 8082) dan tidak memakai sesi user; autentikasinya lewat internal secret header.
+
+#### Sesi User
+
+- Password di-hash dengan **bcrypt** (`golang.org/x/crypto/bcrypt`). Password dipilih manusia dan cenderung lemah, jadi fungsi hash yang sengaja lambat memang yang dibutuhkan di sini (bandingkan dengan API key di bawah).
+- Session token: 32 byte dari `crypto/rand`, dikirim ke client sekali, dan disimpan di PostgreSQL sebagai SHA-256 (tabel `sessions`) beserta masa berlakunya. Logout dan ganti password menghapus barisnya, jadi sesi bisa dicabut seketika.
+- Endpoint management memeriksa sesi ke PostgreSQL di setiap request. Trafiknya kecil, dan kemampuan mencabut lebih penting di sini daripada kecepatan. Jalur baca (§4.8) memakai JWT berumur pendek karena pertimbangannya terbalik.
 
 #### Penyimpanan API Key
 
 > **Perbaikan dari v1.0.** v1.0 menyimpan hash di PostgreSQL tapi **plaintext di Redis**. Karena Redis paling sering di-expose tanpa password di lingkungan pengembangan, satu kebocoran Redis berarti seluruh API key semua tenant bocor sekaligus — dan hash di PostgreSQL menjadi tidak ada gunanya.
 
-- Plain key: `logpilot_` + 32 karakter acak dari **CSPRNG** (`random_bytes()`, bukan `rand()`).
+- Plain key: `logpilot_` + 32 karakter acak dari **CSPRNG** (`crypto/rand`, bukan `math/rand`).
 - Disimpan di PostgreSQL sebagai **SHA-256**.
 - Disimpan di Redis sebagai **SHA-256** juga: `SET api_key:{sha256(plain)} {project_id}`.
 - Ingestor melakukan hash terhadap key dari header, lalu lookup dengan hash tersebut.
@@ -667,6 +696,7 @@ Dua jebakan yang ditangani: **thundering herd** (dicegah `singleflight`) dan **s
 | Tabel | Kolom Utama | Relasi |
 |---|---|---|
 | `users` | id, name, email, password, created_at | — |
+| `sessions` | id, user_id, token_hash, expires_at, created_at | belongs to users (v3.1) |
 | `projects` | id, user_id, name, slug, pii_scrubbing_enabled, rate_limit_per_minute, created_at | belongs to users |
 | `api_keys` | id, project_id, name, key_hash, last_used_at, created_at | belongs to projects |
 | `alert_rules` | id, project_id, name, type, condition (JSON), threshold, window_seconds, bucket_seconds, cooldown_seconds, is_active | belongs to projects |
@@ -675,6 +705,8 @@ Dua jebakan yang ditangani: **thundering herd** (dicegah `singleflight`) dan **s
 | `issues` | id, project_id, fingerprint, status, first_seen, resolved_at, resolved_by — unik per (project_id, fingerprint) | belongs to projects (v3.0, §5.5) |
 
 `alert_logs` ditulis oleh **Alert Dispatcher** setelah seluruh destination selesai diproses, memuat hasil per destination (berhasil/gagal beserta alasannya). v1.0 mencantumkan tabel ini tanpa menetapkan siapa yang menulisnya.
+
+**Migrasi PostgreSQL** berupa file SQL bernomor di `migrations/postgres/`, dijalankan dengan satu alat migrasi (goose atau golang-migrate; pilih satu dan catat alasannya di `DESIGN-DECISIONS.md`). Laravel dulu menyediakan ini lewat `artisan migrate`; sekarang alatnya harus dipilih sendiri.
 
 ---
 
@@ -721,13 +753,13 @@ Ini keputusan sadar: tool observability yang bisa menjatuhkan aplikasi yang diam
 
 ### 4.8 Go Query API (Tier Showcase)
 
-Komponen baru di v3.0. Satu-satunya jalur baca untuk tenant, dan backend dari Console.
+Komponen baru di v3.0. Satu-satunya jalur baca untuk tenant, dan backend dari Console. Sejak v3.1 berjalan sebagai modul `query` di service `api` yang sama dengan Management API (§4.6).
 
-**Kenapa perlu service sendiri, bukan query dari Laravel atau langsung dari browser:**
+**Kenapa jalur baca dijaga sebagai modul sendiri, bukan query langsung dari browser atau dari handler management:**
 
 - **Isolasi tenant harus dipaksa di satu tempat.** `project_id` diambil dari token dan disisipkan ke setiap query oleh server. Client tidak pernah bisa mengirim `project_id` sendiri.
 - **Query ke ClickHouse harus dibatasi biayanya.** Satu query tanpa rentang waktu bisa memindai seluruh tabel dan mengganggu jalur tulis.
-- **Live Tail butuh koneksi yang hidup lama** (satu goroutine per penonton), yang cocok untuk Go dan tidak cocok untuk PHP-FPM.
+- **Live Tail butuh koneksi yang hidup lama** (satu goroutine per penonton), yang cocok untuk Go.
 
 #### Endpoints
 
@@ -743,9 +775,11 @@ Komponen baru di v3.0. Satu-satunya jalur baca untuk tenant, dan backend dari Co
 
 #### Autentikasi
 
-Console login ke Laravel (Sanctum), lalu meminta `POST /api/projects/{id}/query-token`. Laravel memeriksa kepemilikan project dan menerbitkan **JWT berumur 15 menit** berisi `project_id`, ditandatangani dengan kunci privat (EdDSA). Query API hanya memegang kunci publik, memverifikasi tanda tangan dan masa berlaku, dan tidak pernah memanggil Laravel di jalur request.
+Console login ke Management API dan mendapat session token (§4.6), lalu meminta `POST /api/projects/{id}/query-token`. Management API memeriksa kepemilikan project dan menerbitkan **JWT berumur 15 menit** berisi `project_id`, ditandatangani dengan kunci privat (EdDSA). Modul `query` memverifikasi tanda tangan dan masa berlaku dengan kunci publik, dan tidak pernah membaca tabel sesi di jalur request.
 
-Konsekuensi yang disadari: token tidak bisa dicabut sebelum kedaluwarsa. Umur 15 menit adalah batas kerugiannya. Alternatifnya (Query API bertanya ke Laravel setiap request) membuat jalur baca ikut mati saat Laravel mati.
+Karena kedua modul sekarang satu proses, pemisahan kunci privat dan publik belum memberi keamanan tambahan. Bentuk ini dipertahankan karena dua alasan: jalur baca tidak bergantung pada PostgreSQL per request (Live Tail dan Explorer tetap jalan saat PostgreSQL lambat), dan modul `query` bisa dipisah menjadi service sendiri tanpa mengganti format token.
+
+Konsekuensi yang disadari: token tidak bisa dicabut sebelum kedaluwarsa. Umur 15 menit adalah batas kerugiannya. Alternatifnya (memeriksa sesi ke PostgreSQL di setiap query) membuat jalur baca ikut mati saat PostgreSQL mati.
 
 #### Pengaman Query
 
@@ -798,14 +832,14 @@ Next.js + TypeScript. v2.0 membatasi frontend pada form konfigurasi; v3.0 menjad
 
 | Halaman | Isi | Sumber data |
 |---|---|---|
-| **Onboarding** | Buat project → API key tampil sekali → cuplikan `curl` dan SDK siap salin → indikator "menunggu log pertama…" yang berubah hijau saat log masuk | Laravel, lalu Live Tail |
+| **Onboarding** | Buat project → API key tampil sekali → cuplikan `curl` dan SDK siap salin → indikator "menunggu log pertama…" yang berubah hijau saat log masuk | Management API, lalu Live Tail |
 | **Live Tail** | Log mengalir real-time, warna per level, jeda/lanjut, filter | `/v1/logs/tail` |
 | **Explorer** | Kotak query, pemilih rentang waktu, histogram per level, tabel log, panel detail dengan `attributes` | `/v1/logs`, `/v1/logs/histogram` |
 | **Issues** | Daftar issue: pesan ternormalisasi, sparkline 24 jam, jumlah event, user terdampak, first/last seen, status | `/v1/issues` |
-| **Issue detail** | Tren, contoh pesan asli, daftar exemplar trace, tombol Resolve/Ignore | `/v1/issues/{fp}`, Laravel |
+| **Issue detail** | Tren, contoh pesan asli, daftar exemplar trace, tombol Resolve/Ignore | `/v1/issues/{fp}`, Management API |
 | **Trace** | Waterfall span dengan durasi, span gagal ditandai merah, log per span | `/v1/traces/{id}` |
-| **Alerts** | Alert rules, riwayat alert dan hasil pengirimannya per destination | Laravel |
-| **Settings** | API keys, notification config, kuota | Laravel |
+| **Alerts** | Alert rules, riwayat alert dan hasil pengirimannya per destination | Management API |
+| **Settings** | API keys, notification config, kuota | Management API |
 
 **Aturan desain:**
 
@@ -994,8 +1028,8 @@ Agregasi di §5.3 menjawab "ada berapa jenis masalah". Yang belum terjawab: **ma
 Dua-duanya satu perintah Redis per log error, tanpa counter dan tanpa window. `SET ... NX` juga menjamin hanya satu pod yang mengirim, sama seperti cooldown.
 
 Perubahan status mengalir dua arah:
-- User menekan Resolve di Console → Laravel memperbarui PostgreSQL dan menambah fingerprint ke set `issue_resolved` di Redis.
-- Consumer 2 mendeteksi regression → menulis event ke topic `issue-events` → Laravel mengonsumsinya dan mengubah status kembali ke `open`. Consumer 2 tidak menulis langsung ke PostgreSQL; hanya control plane yang boleh.
+- User menekan Resolve di Console → Management API memperbarui PostgreSQL dan menambah fingerprint ke set `issue_resolved` di Redis.
+- Consumer 2 mendeteksi regression → menulis event ke topic `issue-events` → Management API mengonsumsinya dan mengubah status kembali ke `open`. Consumer 2 tidak menulis langsung ke PostgreSQL; hanya control plane yang boleh.
 
 Kenapa dua alert ini lebih berharga daripada threshold: alert threshold berbunyi saat sesuatu *banyak*. Alert `new_issue` berbunyi saat sesuatu *berbeda*, sering kali sesaat setelah deploy dan jauh sebelum jumlahnya menembus ambang.
 
@@ -1024,8 +1058,7 @@ Services yang di-define dalam `docker-compose.yml`:
 - `consumer-storage`
 - `consumer-alert`
 - `alert-dispatcher` — port 9090
-- `laravel-api` — port 8000
-- `query-api` — port 8081 — **baru di v3.0**
+- `api` — port 8081 (publik: Management API + Query API) dan 8082 (internal) — **v3.1, menggantikan `laravel-api` dan `query-api`**
 - `nextjs-frontend` — port 3000
 
 **Infrastructure:**
@@ -1050,10 +1083,10 @@ Setiap service wajib punya:
 | Objek | Isi | Kenapa |
 |---|---|---|
 | `Deployment` | Liveness ke `/health`, readiness ke `/ready`, `resources.requests` dan `limits`, `securityContext` non-root dengan root filesystem read-only | Tanpa `requests`, scheduler tidak tahu kapasitas node; tanpa `limits`, satu pod bisa membuat node kehabisan memori |
-| `Service` | ClusterIP | Hanya Ingestor, Console, Query API, dan Grafana yang keluar lewat Ingress |
+| `Service` | ClusterIP | Hanya Ingestor, Console, port publik service `api`, dan Grafana yang keluar lewat Ingress |
 | `ConfigMap` + `Secret` | Konfigurasi dan kredensial terpisah | Secret tidak pernah masuk Git dalam bentuk terbaca (lihat §6.6) |
 | `PodDisruptionBudget` | `minAvailable: 1` untuk Ingestor | `kubectl drain` tidak boleh mematikan semua pod Ingestor sekaligus |
-| `NetworkPolicy` | Endpoint `/internal/*` Laravel hanya bisa dijangkau Ingestor dan Dispatcher; ClickHouse hanya dari Consumer 1, Query API, dan Grafana | "Internal" harus dipaksa jaringan, bukan hanya disepakati |
+| `NetworkPolicy` | Port internal service `api` (8082, `/internal/*`) hanya bisa dijangkau Ingestor dan Dispatcher; ClickHouse hanya dari Consumer 1, Query API, dan Grafana | "Internal" harus dipaksa jaringan, bukan hanya disepakati |
 
 **Graceful shutdown** berlaku untuk semua service: tangkap SIGTERM, tandai `/ready` gagal, tunggu 5 detik agar trafik berhenti mengalir, flush buffer, lalu keluar. `terminationGracePeriodSeconds` harus lebih panjang dari waktu flush terburuk Consumer 1.
 
@@ -1077,6 +1110,21 @@ Bagian tersulit menjalankan LogPilot di Kubernetes bukan service Go-nya, melaink
 | PostgreSQL | CloudNativePG | Backup terjadwal, point-in-time recovery, failover |
 | Redis | Deployment biasa, tanpa persistence | Redis di sini cache dan counter; semua isinya bisa dibangun ulang (§4.6), jadi sengaja tidak diberi volume |
 
+**Urutan pemasangan (v3.1).** Perkakas platform dipasang satu per satu, satu perkakas per sesi, dengan urutan ini:
+
+1. ingress-nginx
+2. cert-manager
+3. Argo CD
+4. kube-prometheus-stack
+5. Strimzi (Kafka)
+6. Altinity ClickHouse Operator
+7. CloudNativePG
+8. KEDA
+
+Sebelum memasang yang berikutnya, dua hal harus ada: perkakas yang baru terpasang sudah dipakai oleh minimal satu beban kerja LogPilot, dan pemakaian memori node sebelum dan sesudahnya (`kubectl top`) tercatat di `docs/CAPACITY.md`. Dengan begitu, kalau ada yang rusak, penyebabnya adalah perkakas terakhir.
+
+KEDA ditaruh terakhir karena ia butuh consumer dan metrik lag yang sudah berjalan. Kalau memori node habis sebelum daftar ini selesai, perkakas yang tersisa dijalankan di `lab` saja atau diganti cara yang lebih ringan (misalnya `StatefulSet` biasa tanpa operator). Itu dicatat sebagai keputusan di `DESIGN-DECISIONS.md`, bukan sebagai kegagalan.
+
 Storage memakai `local-path` bawaan k3s di environment demo. Konsekuensinya dicatat: volume terikat ke satu node, jadi pod stateful tidak bisa pindah node. Di `lab`, Longhorn dipakai untuk merasakan bedanya.
 
 **Backup dan pemulihan** adalah bagian dari definisi selesai, bukan tambahan:
@@ -1093,7 +1141,7 @@ Backup yang belum pernah dipulihkan dihitung sebagai belum ada.
 
 - **ingress-nginx** sebagai satu-satunya jalur masuk; k3s dipasang tanpa Traefik bawaannya supaya sama dengan cluster AHU.
 - **cert-manager** dengan Let's Encrypt (HTTP-01) menerbitkan dan memperpanjang sertifikat otomatis.
-- Hostname: `app.<domain>` (Console), `ingest.<domain>` (Ingestor), `api.<domain>` (Laravel + Query API), `grafana.<domain>` (baca-saja, anonim, hanya dashboard System Health).
+- Hostname: `app.<domain>` (Console), `ingest.<domain>` (Ingestor), `api.<domain>` (service `api`: Management API + Query API), `grafana.<domain>` (baca-saja, anonim, hanya dashboard System Health).
 - Ingress untuk `/v1/logs/tail` butuh `proxy-buffering: off` dan timeout baca panjang; kalau tidak, SSE tertahan di buffer nginx dan Live Tail tampak macet.
 - Rate limit di Ingress untuk endpoint login dan tombol simulasi insiden.
 
@@ -1107,7 +1155,7 @@ Backup yang belum pernah dipulihkan dihitung sebagai belum ada.
 | PostgreSQL, Redis | 0,3 GB |
 | Prometheus, Grafana, Alertmanager, kafka-exporter | 0,7 GB |
 | Argo CD, ingress-nginx, cert-manager, KEDA, operator | 1,2 GB |
-| Service LogPilot (5 Go, Laravel, Next.js) | 0,8 GB |
+| Service LogPilot (5 Go, Next.js) | 0,8 GB |
 | **Total** | **± 6,3 GB** |
 
 Jadi target VPS demo adalah **8 GB RAM / 4 vCPU**; VM 2 GB cukup untuk latihan k3s dan Ingestor saja. Tabel ini **hipotesis**, belum pengukuran: angka sebenarnya diambil dari `kubectl top` setelah berjalan seminggu dan dicatat di `docs/CAPACITY.md` (`R-S4`), termasuk selisihnya dari perkiraan ini.
@@ -1200,7 +1248,20 @@ Kebanyakan orang tidak akan melewati layar pertama README. Layar pertama itu har
 4. Tabel 4–5 angka terukur dari `BENCHMARKS.md` (throughput, p99, waktu lookup trace, RTO), masing-masing dengan tautan ke cara pengukurannya.
 5. Quick start: `docker compose up`, lalu `make demo`. Dua perintah, hasil terlihat di browser dalam 2 menit.
 
-Setelah itu baru daftar fitur, keputusan desain, dan cara deploy ke Kubernetes.
+Setelah itu baru daftar fitur, keputusan desain, dan cara deploy ke Kubernetes. Urutannya mengikuti positioning di §1.4: pipeline backend dan angkanya dulu, lalu bagian platform sebagai bukti sistem yang sama dioperasikan sendiri (deploy dari Git, pemulihan, autoscaling), lalu tautan ke tulisan teknis (§7.5).
+
+### 7.5 Tulisan Teknis (v3.1)
+
+Setiap masalah sulit yang diselesaikan ditulis menjadi satu tulisan pendek (600–1.000 kata) di `docs/writing/` dan ditautkan dari README. Bentuknya tetap: masalahnya, kenapa pendekatan pertama salah, perbaikannya, dan angka atau test yang membuktikannya. Tulisan dibuat saat chunk-nya selesai, bukan dikumpulkan di akhir, dan ditulis oleh pemilik proyek (AI hanya me-review, sama seperti kodenya).
+
+Kandidat pertama, semuanya sudah punya bahan di dokumen ini:
+
+| Tulisan | Bahan |
+|---|---|
+| Deduplikasi insert pada pipeline at-least-once | §4.3, F9 |
+| Kenapa materialized view issue menghitung salah | §5.3 |
+| Rate limiter yang bisa mengunci satu tenant selamanya | §4.1 Layer 2 |
+| Autoscaling consumer dari lag, bukan dari CPU | §6.3 |
 
 ---
 
@@ -1271,14 +1332,15 @@ logpilot/
 │   │   ├── destinations/       # clickup, sendgrid, slack
 │   │   └── Dockerfile
 │   │
-│   ├── query-api/              # Go Query API (v3.0)
-│   │   ├── handler/            # logs, tail (SSE), issues, traces
-│   │   ├── auth/               # verifikasi JWT
+│   ├── api/                    # Go: Management API + Query API (v3.1)
+│   │   ├── management/         # sesi, project, API key, alert rule, notifikasi, status issue
+│   │   ├── internalapi/        # listener internal :8082 untuk Ingestor dan Dispatcher
+│   │   ├── query/              # logs, tail (SSE), issues, traces
+│   │   ├── auth/               # sesi, penerbitan dan verifikasi JWT
 │   │   ├── lpql/               # parser bahasa query
 │   │   ├── tail/               # pembaca Kafka + fan-out ke penonton
 │   │   └── Dockerfile
 │   │
-│   ├── laravel-api/            # PHP Laravel
 │   └── frontend/               # Next.js — LogPilot Console
 │
 ├── sdk/
@@ -1294,7 +1356,8 @@ logpilot/
 │   └── fingerprint/            # dipakai bersama: normalize.go, fingerprint.go
 │
 ├── migrations/
-│   └── clickhouse/             # 001_create_logs.sql, 002_..., run.sh
+│   ├── clickhouse/             # 001_create_logs.sql, 002_..., run.sh
+│   └── postgres/               # skema Management API (v3.1)
 │
 ├── demo/
 │   ├── dummy-app/              # Go e-commerce dummy (pakai SDK)
@@ -1347,8 +1410,8 @@ logpilot/
 | F4 | Query berfungsi | Query bisa filter by `level`, `service`, `trace_id`, time range, lewat Query API (tenant) dan Grafana (operator) |
 | F5 | Alert trigger berfungsi | Setelah 10 ERROR dalam 5 menit, ClickUp task ter-create dan email terkirim |
 | F6 | Cooldown berfungsi | Alert tidak trigger lagi dalam 10 menit, **tetapi counter tetap menghitung selama periode tersebut** |
-| F7 | API key management | Generate API key via Laravel API, key langsung bisa digunakan di Ingestor |
-| F8 | Alert rule management | Buat alert rule via Laravel API, rule aktif dalam 30 detik di Consumer 2 |
+| F7 | API key management | Generate API key via Management API, key langsung bisa digunakan di Ingestor |
+| F8 | Alert rule management | Buat alert rule via Management API, rule aktif dalam 30 detik di Consumer 2 |
 | F9 | **No data loss, no duplicate** | Matikan ClickHouse 1 menit — semua log yang masuk selama downtime tersimpan, **dan `count()` tepat sama dengan jumlah yang dikirim** (bukan lebih) |
 | **F10** | **Trace correlation** | Satu request lintas 2 service menghasilkan log dengan `trace_id` identik dan `span_id` berbeda; query by `trace_id` mengembalikan seluruh log request tersebut secara urut |
 | **F11** | **Error fingerprinting** | 1.000 error dengan pesan bervariasi dari 5 penyebab berbeda mengelompok menjadi tepat 5 fingerprint di halaman Issues |
@@ -1425,17 +1488,17 @@ Sebuah komponen dinyatakan selesai bukan ketika kodenya jalan, melainkan ketika:
 
 ## 12. Stretch (Tier 4)
 
-Tidak ada yang wajib, dan tidak ada yang dimulai sebelum M7. Dicatat supaya idenya tidak hilang dan tidak diselundupkan ke tier lain.
+Tidak ada yang wajib, dan tidak ada yang dimulai sebelum M7. Urutan baris adalah urutan prioritas. Dicatat supaya idenya tidak hilang dan tidak diselundupkan ke tier lain.
 
 | Fitur | Nilainya | Yang dipelajari | Risiko |
 |---|---|---|---|
+| **Handler Monolog (PHP)** | Aplikasi PHP mengirim log ke LogPilot dengan satu baris konfigurasi. Butir Stretch pertama sejak v3.1 | Membuat paket Composer; relevan langsung dengan stack AHU | SDK kedua berarti beban pemeliharaan kedua |
 | **Ringkasan insiden dengan LLM** | Tombol "Jelaskan issue ini": ringkasan pola error, kemungkinan penyebab, dan trace yang layak dibuka. Paling menarik perhatian orang non-teknis | Memanggil Claude API dari Go, membatasi konteks (contoh pesan + tren, bukan seluruh log), cache per fingerprint | Mengirim isi log ke pihak ketiga: hanya setelah PII scrubbing, opt-in per project, dan mati secara bawaan |
 | **SLO burn-rate alert** | Alert berdasarkan laju habisnya error budget (multi-window), bukan ambang tetap | Konsep SRE yang paling sering ditanyakan untuk peran platform | Butuh data rasio sukses/gagal, bukan hanya hitungan error |
 | **Cold storage** | Log > 7 hari pindah ke object storage (`TTL ... TO VOLUME`), retensi 90 hari tanpa menambah disk | Storage policy ClickHouse, trade-off biaya vs latensi query | Query ke data dingin lambat; harus terlihat di UI |
-| **Handler Monolog (Laravel)** | Aplikasi PHP mengirim log ke LogPilot dengan satu baris konfigurasi | Membuat paket Composer; relevan langsung dengan stack AHU | SDK kedua berarti beban pemeliharaan kedua |
 | **Dogfooding** | Service LogPilot mengirim log-nya sendiri ke LogPilot, project `logpilot-internal` | Menjadi pengguna produk sendiri | Lingkaran umpan balik: error Ingestor menghasilkan log yang dikirim ke Ingestor. Wajib lewat jalur terpisah dengan drop-on-failure |
 | **Cluster kubeadm multi-node** | Kafka 3 broker dan ClickHouse 2 replika sungguhan di environment `lab` | `min.insync.replicas`, `ReplicatedMergeTree`, node drain, kegagalan node | Biaya sewa VM; cukup dinyalakan saat latihan |
 
 ---
 
-*LogPilot PRD v3.0 | Firman | November 2026*
+*LogPilot PRD v3.1 | Firman | November 2026*

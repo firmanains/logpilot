@@ -430,7 +430,7 @@ the version that actually gets asked in interviews.
 **Project:** LogPilot — self-hosted log ingestion and alerting platform
 
 **Stack:** Go (Fiber, sarama) · Apache Kafka · ClickHouse · Redis · PostgreSQL ·
-Laravel · Next.js · Grafana · Prometheus · Alertmanager · Docker · Kubernetes
+Next.js · Grafana · Prometheus · Alertmanager · Docker · Kubernetes
 
 **Architecture — actual service list** *(corrected: v1 of this file listed
 "Processor" and "Query API", neither of which exist in the PRD)*:
@@ -441,8 +441,7 @@ Laravel · Next.js · Grafana · Prometheus · Alertmanager · Docker · Kuberne
 | Consumer 1 — Storage Worker | Go | Kafka → micro-batch → ClickHouse |
 | Consumer 2 — Alert Evaluator | Go | Kafka → rule evaluation → Redis counter → Alertmanager |
 | Alert Dispatcher | Go | Alertmanager webhook → ClickUp / SendGrid / Slack |
-| Laravel API | PHP | Control plane: auth, projects, API keys, alert rules |
-| Query API | Go | Tenant read path: enforces `project_id`, query limits, Live Tail over SSE (`S-1`–`S-5`) |
+| API (Management + Query) | Go | One service, two modules. Management: sessions, projects, API keys, alert rules (`4.1`–`4.10`). Query: tenant read path that enforces `project_id`, query limits, Live Tail over SSE (`S-1`–`S-5`). Internal endpoints on a separate listener (`:8082`) |
 | Frontend | Next.js | LogPilot Console: Live Tail, Explorer, Issues, Trace, settings |
 | SDK | Go | Client library — where trace_id is born (`R-I3`) |
 
@@ -478,7 +477,7 @@ exactly the part I'm trying to learn. Don't make it.
 **Docs map:**
 | File | Contains |
 |---|---|
-| `docs/PRD.md` | Full spec (v3.0 — adds Query API, Console, Platform/DevOps track, scope tiers) |
+| `docs/PRD.md` | Full spec (v3.1 — v3.0 added Query API, Console, Platform/DevOps track, scope tiers; v3.1 replaces Laravel with a Go Management API inside the `api` service) |
 | `docs/TODO.md` | Task list, Phase 0–8 + Phase R + Phase S (Showcase) + Phase P (Platform) |
 | `docs/RUNBOOK.md` | One section per alert: symptom, how to check, how to recover |
 | `docs/DESIGN-DECISIONS.md` | Why I chose X over Y, per component |
@@ -496,6 +495,8 @@ something was skipped. Flag it.**
 - 🟡 Phase 2 — Storage Worker (Chunks 2.1–2.3 done, 2.4 onward blocked on `R-J1`/`R-J2`)
 - ⬜ Phase R — not started
 - ⬜ Phase S (Showcase), Phase P (Platform) — not started; ordering follows milestones M1–M8 in PRD §8
+
+**Positioning:** backend engineer who understands platform and DevOps (PRD §1.4). Backend is the front face; platform is the proof he can operate what he builds.
 
 **Firman's background:** Backend engineer with Go and PHP experience.
 Comfortable with MySQL/MariaDB, Kafka basics, Kubernetes. Building
