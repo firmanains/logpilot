@@ -112,3 +112,24 @@ KAFKA_BROKERS=127.0.0.1:9093
 - `127.0.0.1:9093` (EXTERNAL) → dari host machine (Go service yang jalan di local)
 
 ======================================================================================
+
+## Issue #4 — ClickHouse TTL Expression Gagal dengan DateTime64
+
+### Symptom
+Menjalankan CREATE TABLE dengan TTL menghasilkan error:
+
+```
+Code: 450. DB::Exception: TTL expression result column should have DateTime or Date type, but has DateTime64(3). (BAD_TTL_EXPRESSION)
+```
+
+### Root Cause
+ClickHouse TTL expression tidak support tipe `DateTime64` secara langsung. Kolom `timestamp` bertipe `DateTime64(3)`, sedangkan TTL membutuhkan hasil expression bertipe `DateTime` atau `Date`.
+
+### Solution
+Cast kolom `timestamp` ke `DateTime` sebelum menambahkan interval:
+
+```sql
+TTL toDateTime(timestamp) + toIntervalDay(30)
+```
+
+======================================================================================
